@@ -1,0 +1,21 @@
+# 환경변수 (보안)
+.env
+.env.local
+.env.production
+
+# 의존성
+node_modules/
+
+# Docker 볼륨 데이터
+postgres_data/
+
+# 빌드 결과물
+dist/
+build/
+
+# 로그
+*.log
+
+# OS 파일
+.DS_Store
+Thumbs.db

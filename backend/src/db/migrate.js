@@ -44,6 +44,10 @@ const sql = `
     deleted_at  TIMESTAMPTZ
   );
 
+  CREATE UNIQUE INDEX IF NOT EXISTS company_members_unique_active
+    ON company_members (company_id, user_id)
+    WHERE deleted_at IS NULL;
+
   CREATE TABLE IF NOT EXISTS records (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id  UUID        NOT NULL REFERENCES companies(id),

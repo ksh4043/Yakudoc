@@ -96,6 +96,7 @@
 - **확장성 예약**: `users.team_id`, `records.owner_type` 등 고도화 시 활성화할 컬럼 미리 확보
 - **결과 타입 분리**: `record_results` 를 별도 테이블로 분리해 결과 타입 추가 시 유연하게 확장
 - **태그 정규화**: `tags` + `record_tags` 중간 테이블로 분리해 태그 추가/삭제/변경에 유연하게 대응
+- **태그 유니크 제약**: `tags(user_id, name)`은 소프트 딜리트를 고려한 조건부 유니크 인덱스(`WHERE deleted_at IS NULL`)로 활성 태그 간 이름 중복 방지. `record_tags(record_id, tag_id)`는 `deleted_at` 컬럼이 없는 순수 연결 테이블이므로 조건 없는 유니크 인덱스로 중복 연결 방지
 - **히스토리 테이블**: 회사명 등 중요 정보 변경 이력은 고도화 시 추가 예정
 
 ### 5-2. 테이블 정의
@@ -494,11 +495,15 @@ Request (multipart/form-data)
   input_type: "text" | "file" | "image",
   language: "en" | "ja",
   content?: string,   // input_type이 text일 때
-  file?: File         // input_type이 file / image일 때
+  file?: File,        // input_type이 file / image일 때
+  tag_ids?: string    // 콤마로 구분된 기존 tag id 목록 (선택), 예: "uuid1,uuid2"
 }
 
 Response 202
 { record_id: string, status: "processing" }
+
+Response 400
+{ error: "잘못된 요청입니다" }   // tag_ids 중 존재하지 않거나 본인 소유가 아닌 태그가 포함된 경우
 ```
 
 **GET /api/records/:id**

@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const { authenticate } = require('../middleware/auth');
 const recordsController = require('../controllers/records');
+const tagsController = require('../controllers/tags');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -14,5 +15,7 @@ const recordRouter = express.Router();
 recordRouter.use(authenticate);
 recordRouter.get('/:id', recordsController.getRecord);
 recordRouter.delete('/:id', recordsController.deleteRecord);
+recordRouter.post('/:id/tags', tagsController.addRecordTag);
+recordRouter.delete('/:id/tags/:tagId', tagsController.removeRecordTag);
 
 module.exports = { companyRecordsRouter, recordRouter };

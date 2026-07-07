@@ -79,12 +79,19 @@ const sql = `
     deleted_at  TIMESTAMPTZ
   );
 
+  CREATE UNIQUE INDEX IF NOT EXISTS tags_unique_active
+    ON tags (user_id, name)
+    WHERE deleted_at IS NULL;
+
   CREATE TABLE IF NOT EXISTS record_tags (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     record_id   UUID        NOT NULL REFERENCES records(id),
     tag_id      UUID        NOT NULL REFERENCES tags(id),
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
   );
+
+  CREATE UNIQUE INDEX IF NOT EXISTS record_tags_unique
+    ON record_tags (record_id, tag_id);
 
   CREATE TABLE IF NOT EXISTS refresh_tokens (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),

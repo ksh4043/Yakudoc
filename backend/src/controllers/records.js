@@ -73,9 +73,11 @@ async function processRecordAsync(recordId, { input_type, language, content, fil
   }
 }
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 async function createRecord(req, res) {
   const { id: companyId } = req.params;
-  const { input_type, language, content } = req.body;
+  const { input_type, language, content, tag_ids } = req.body;
   const file = req.file;
 
   if (!['text', 'file', 'image'].includes(input_type) || !['en', 'ja'].includes(language)) {
@@ -88,6 +90,13 @@ async function createRecord(req, res) {
     return res.status(400).json({ error: '잘못된 요청입니다' });
   }
 
+  const tagIdList = tag_ids
+    ? [...new Set(tag_ids.split(',').map((t) => t.trim()).filter(Boolean))]
+    : [];
+  if (tagIdList.some((t) => !UUID_RE.test(t))) {
+    return res.status(400).json({ error: '잘못된 요청입니다' });
+  }
+
   try {
     const { exists, hasAccess } = await checkCompanyAccess(companyId, req.user.id);
     if (!exists) {
@@ -97,13 +106,43 @@ async function createRecord(req, res) {
       return res.status(403).json({ error: '권한이 없습니다' });
     }
 
-    const { rows } = await pool.query(
-      `INSERT INTO records (company_id, created_by, input_type, language, status)
-       VALUES ($1, $2, $3, $4, 'processing')
-       RETURNING id`,
-      [companyId, req.user.id, input_type, language]
-    );
-    const recordId = rows[0].id;
+    if (tagIdList.length > 0) {
+      const { rows: ownedTags } = await pool.query(
+        `SELECT id FROM tags WHERE id = ANY($1::uuid[]) AND user_id = $2 AND deleted_at IS NULL`,
+        [tagIdList, req.user.id]
+      );
+      if (ownedTags.length !== tagIdList.length) {
+        return res.status(400).json({ error: '잘못된 요청입니다' });
+      }
+    }
+
+    const client = await pool.connect();
+    let recordId;
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query(
+        `INSERT INTO records (company_id, created_by, input_type, language, status)
+         VALUES ($1, $2, $3, $4, 'processing')
+         RETURNING id`,
+        [companyId, req.user.id, input_type, language]
+      );
+      recordId = rows[0].id;
+
+      if (tagIdList.length > 0) {
+        const placeholders = tagIdList.map((_, i) => `($1, $${i + 2})`).join(', ');
+        await client.query(
+          `INSERT INTO record_tags (record_id, tag_id) VALUES ${placeholders}`,
+          [recordId, ...tagIdList]
+        );
+      }
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
 
     res.status(202).json({ record_id: recordId, status: 'processing' });
 

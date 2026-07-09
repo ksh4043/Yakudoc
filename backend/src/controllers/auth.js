@@ -30,7 +30,7 @@ async function login(req, res) {
       return res.status(403).json({ error: '비활성화된 계정입니다' });
     }
     const accessToken = jwt.sign(
-      { id: user.id, email: user.email, name: user.name, role: user.role },
+      { sub: user.id, id: user.id, email: user.email, name: user.name, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '1h' }
     );
@@ -84,7 +84,7 @@ async function refresh(req, res) {
     }
     const user = userRows[0];
     const newAccessToken = jwt.sign(
-      { id: user.id, email: user.email, name: user.name, role: user.role },
+      { sub: user.id, id: user.id, email: user.email, name: user.name, role: user.role },
       process.env.JWT_SECRET,
       { expiresIn: '1h' }
     );

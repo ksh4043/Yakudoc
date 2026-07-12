@@ -509,18 +509,20 @@ Response 400
 **GET /api/records/:id**
 ```
 Response 200 (processing 중)
-{ id: string, status: "processing" }
+{ id: string, company_id: string, status: "processing" }
 
 Response 200 (완료)
 {
-  id: string, status: "done", language: "en" | "ja",
+  id: string, company_id: string, status: "done", language: "en" | "ja",
   results: [ { result_type: "summary" | "risk" | "mail_draft", content: string } ],
   tags: [ { id: string, name: string } ], created_at: string
 }
 
 Response 200 (실패)
-{ id: string, status: "failed", error: "분석 중 오류가 발생했습니다" }
+{ id: string, company_id: string, status: "failed", error: "분석 중 오류가 발생했습니다" }
 ```
+
+> `company_id`는 결과 화면에서 소속 업체 상세로 되돌아가기 위해 응답에 포함한다.
 
 **DELETE /api/records/:id**
 ```

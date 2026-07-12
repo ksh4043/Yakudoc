@@ -182,10 +182,10 @@ async function getRecord(req, res) {
     }
 
     if (record.status === 'processing') {
-      return res.status(200).json({ id: record.id, status: 'processing' });
+      return res.status(200).json({ id: record.id, company_id: record.company_id, status: 'processing' });
     }
     if (record.status === 'failed') {
-      return res.status(200).json({ id: record.id, status: 'failed', error: '분석 중 오류가 발생했습니다' });
+      return res.status(200).json({ id: record.id, company_id: record.company_id, status: 'failed', error: '분석 중 오류가 발생했습니다' });
     }
 
     const { rows: results } = await pool.query(
@@ -203,6 +203,7 @@ async function getRecord(req, res) {
 
     return res.status(200).json({
       id: record.id,
+      company_id: record.company_id,
       status: 'done',
       language: record.language,
       results,

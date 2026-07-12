@@ -41,7 +41,10 @@ api.interceptors.response.use(
   async (error) => {
     const { config, response } = error
 
-    if (response?.status !== 401 || config._retry) {
+    // refresh 요청 자체가 401이면 재시도하지 않는다 (무한 refresh 루프 방지)
+    const isRefreshRequest = config?.url?.includes('/api/auth/refresh')
+
+    if (response?.status !== 401 || config._retry || isRefreshRequest) {
       return Promise.reject(error)
     }
     config._retry = true

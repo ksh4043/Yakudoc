@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, LogOut } from 'lucide-react'
+import { ArrowLeft, LogOut, Trash2 } from 'lucide-react'
 import api from '@/lib/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { Button } from '@/components/ui/button'
@@ -9,6 +9,14 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
 
 const LANGUAGES = [
   { value: 'en', label: '영문' },
@@ -51,6 +59,10 @@ export default function CompanyDetailPage() {
   const [file, setFile] = useState(null)
   const [formError, setFormError] = useState(null)
   const [pollingId, setPollingId] = useState(null)
+  const [selectionMode, setSelectionMode] = useState(false)
+  const [selectedIds, setSelectedIds] = useState([])
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [deleteError, setDeleteError] = useState(null)
 
   const companyQuery = useQuery({
     queryKey: ['company', id],
@@ -107,7 +119,41 @@ export default function CompanyDetailPage() {
     },
   })
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (recordIds) =>
+      api.post('/api/records/bulk-delete', { record_ids: recordIds }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['companies', id, 'records'] })
+      exitSelection()
+      setConfirmOpen(false)
+    },
+    onError: (err) => {
+      setDeleteError(err.response?.data?.error ?? '삭제에 실패했습니다')
+    },
+  })
+
   const isProcessing = createMutation.isPending || !!pollingId
+
+  function exitSelection() {
+    setSelectionMode(false)
+    setSelectedIds([])
+  }
+
+  function toggleSelect(recordId) {
+    setSelectedIds((prev) =>
+      prev.includes(recordId)
+        ? prev.filter((x) => x !== recordId)
+        : [...prev, recordId],
+    )
+  }
+
+  function handleRecordClick(record) {
+    if (selectionMode) {
+      toggleSelect(record.id)
+    } else {
+      navigate(`/records/${record.id}`)
+    }
+  }
 
   function handleSubmit(e) {
     e.preventDefault()
@@ -281,7 +327,45 @@ export default function CompanyDetailPage() {
         {/* 기록 목록 */}
         <Card>
           <CardHeader>
-            <CardTitle>분석 기록</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle>분석 기록</CardTitle>
+              {recordsQuery.data?.length > 0 &&
+                (selectionMode ? (
+                  <div className="flex gap-2">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => {
+                        setDeleteError(null)
+                        setConfirmOpen(true)
+                      }}
+                      disabled={
+                        selectedIds.length === 0 || bulkDeleteMutation.isPending
+                      }
+                    >
+                      선택 삭제
+                      {selectedIds.length > 0 ? ` (${selectedIds.length})` : ''}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={exitSelection}
+                      disabled={bulkDeleteMutation.isPending}
+                    >
+                      취소
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setSelectionMode(true)}
+                  >
+                    <Trash2 />
+                    삭제하기
+                  </Button>
+                ))}
+            </div>
           </CardHeader>
           <CardContent className="flex flex-col gap-2">
             {recordsQuery.isLoading && (
@@ -297,29 +381,106 @@ export default function CompanyDetailPage() {
                 분석 기록이 없습니다
               </p>
             )}
-            {recordsQuery.data?.map((record) => (
-              <button
-                key={record.id}
-                type="button"
-                onClick={() => navigate(`/records/${record.id}`)}
-                className="flex items-center justify-between rounded-lg border border-border px-4 py-3 text-left transition-colors hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
-              >
-                <div className="flex flex-col gap-0.5">
-                  <span className="text-sm">{formatDate(record.created_at)}</span>
-                  <span className="text-xs text-muted-foreground">
-                    {record.language === 'ja' ? '일문' : '영문'}
-                  </span>
-                </div>
-                <span
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_CLASS[record.status] ?? ''}`}
+            {recordsQuery.data?.map((record) => {
+              const selected = selectedIds.includes(record.id)
+              return (
+                <div
+                  key={record.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => handleRecordClick(record)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault()
+                      handleRecordClick(record)
+                    }
+                  }}
+                  className={`flex cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none ${selected ? 'border-primary bg-primary/5' : 'border-border'}`}
                 >
-                  {STATUS_LABEL[record.status] ?? record.status}
-                </span>
-              </button>
-            ))}
+                  {selectionMode && (
+                    <input
+                      type="checkbox"
+                      checked={selected}
+                      readOnly
+                      tabIndex={-1}
+                      className="pointer-events-none size-4 accent-primary"
+                    />
+                  )}
+                  <div className="flex flex-1 flex-col gap-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex flex-col gap-0.5">
+                        <span className="text-sm">
+                          {formatDate(record.created_at)}
+                        </span>
+                        <span className="text-xs text-muted-foreground">
+                          {record.language === 'ja' ? '일문' : '영문'}
+                        </span>
+                      </div>
+                      <span
+                        className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${STATUS_CLASS[record.status] ?? ''}`}
+                      >
+                        {STATUS_LABEL[record.status] ?? record.status}
+                      </span>
+                    </div>
+                    {record.tags?.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {record.tags.map((tag) => (
+                          <span
+                            key={tag.id}
+                            className="rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground"
+                          >
+                            {tag.name}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )
+            })}
           </CardContent>
         </Card>
       </main>
+
+      <Dialog
+        open={confirmOpen}
+        onOpenChange={(next) => {
+          if (!bulkDeleteMutation.isPending) setConfirmOpen(next)
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>선택한 기록을 삭제할까요?</DialogTitle>
+            <DialogDescription>
+              선택한 {selectedIds.length}건이 목록에서 사라집니다. 되돌릴 수
+              없습니다.
+            </DialogDescription>
+          </DialogHeader>
+          {deleteError && (
+            <p className="text-sm text-destructive" role="alert">
+              {deleteError}
+            </p>
+          )}
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setConfirmOpen(false)}
+              disabled={bulkDeleteMutation.isPending}
+            >
+              취소
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => bulkDeleteMutation.mutate(selectedIds)}
+              disabled={bulkDeleteMutation.isPending}
+            >
+              {bulkDeleteMutation.isPending ? '삭제 중…' : '삭제'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

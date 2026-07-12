@@ -13,6 +13,8 @@ companyRecordsRouter.get('/:id/records', recordsController.listRecords);
 
 const recordRouter = express.Router();
 recordRouter.use(authenticate);
+// '/:id'보다 먼저 선언해 'bulk-delete'가 :id로 잡히지 않게 한다
+recordRouter.post('/bulk-delete', recordsController.bulkDeleteRecords);
 recordRouter.get('/:id', recordsController.getRecord);
 recordRouter.delete('/:id', recordsController.deleteRecord);
 recordRouter.post('/:id/tags', tagsController.addRecordTag);

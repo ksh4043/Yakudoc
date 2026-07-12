@@ -291,4 +291,25 @@ async function deleteRecord(req, res) {
   }
 }
 
-module.exports = { createRecord, getRecord, listRecords, deleteRecord };
+async function bulkDeleteRecords(req, res) {
+  const { record_ids: recordIds } = req.body;
+  if (!Array.isArray(recordIds) || recordIds.length === 0) {
+    return res.status(400).json({ error: '잘못된 요청입니다' });
+  }
+  try {
+    // 본인 소유의 활성 기록만 소프트 딜리트. 소유가 아니거나 존재하지 않거나
+    // 이미 삭제된 id는 조용히 건너뛰고, 실제 삭제된 건수만 반환한다.
+    const { rows } = await pool.query(
+      `UPDATE records SET deleted_at = NOW()
+       WHERE id = ANY($1::uuid[]) AND created_by = $2 AND deleted_at IS NULL
+       RETURNING id`,
+      [recordIds, req.user.id]
+    );
+    return res.status(200).json({ deleted_count: rows.length });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: '서버 오류가 발생했습니다' });
+  }
+}
+
+module.exports = { createRecord, getRecord, listRecords, deleteRecord, bulkDeleteRecords };

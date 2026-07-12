@@ -283,6 +283,7 @@ Access Token 만료 → /api/auth/refresh 로 재발급
 | POST | `/api/companies/:id/records` | 분석 요청 → 즉시 record_id + status 반환 |
 | GET | `/api/records/:id` | 기록 상세 + 결과 조회 (폴링용) |
 | DELETE | `/api/records/:id` | 기록 삭제 (소프트 딜리트) |
+| POST | `/api/records/bulk-delete` | 기록 다중 삭제 (소프트 딜리트) |
 | POST | `/api/records/:id/tags` | 태그 연결 |
 | DELETE | `/api/records/:id/tags/:tagId` | 태그 연결 해제 |
 
@@ -529,6 +530,21 @@ Response 200 (실패)
 Response 200
 { message: "기록이 삭제되었습니다" }
 ```
+
+**POST /api/records/bulk-delete**
+```
+Request
+{ record_ids: string[] }
+
+Response 200
+{ deleted_count: number }
+
+Response 400
+{ error: "잘못된 요청입니다" }   // record_ids가 배열이 아니거나 비어 있는 경우
+```
+
+> 본인(created_by)이 소유한 기록만 소프트 딜리트한다. 소유가 아니거나 존재하지 않거나
+> 이미 삭제된 id는 조용히 건너뛰며, 실제 삭제된 건수만 deleted_count로 반환한다.
 
 ---
 

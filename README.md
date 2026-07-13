@@ -65,4 +65,45 @@ docker compose down -v    # DB 볼륨까지 삭제 (데이터 초기화)
 
 ## 아키텍처
 
-추후 작성 예정
+### 컨테이너 구성 (same-origin 리버스 프록시)
+
+```
+[호스트 :8080] → frontend(nginx) ──/api, /health──> backend(:3000) ──> db(postgres:5432)
+                     └── React 빌드 결과물(dist) 정적 서빙
+```
+
+- 단일 진입점은 프론트엔드 nginx(`:8080`). React 정적 자산을 서빙하고, `/api`·`/health`
+  요청만 backend 컨테이너로 프록시한다.
+- 브라우저 입장에서 프론트와 API가 동일 출처(same-origin)이므로 CORS·쿠키 이슈가 없다.
+- `docker compose`로 frontend / backend / db 3컨테이너를 함께 기동하며, backend는
+  `depends_on` + `healthcheck`로 db가 준비된 뒤에 시작한다.
+
+### AI 서비스 레이어 추상화
+
+AI 호출부를 `AIService` 인터페이스로 추상화하고, 환경변수 `AI_PROVIDER`로 구현체를 결정한다.
+
+```
+AIService (인터페이스)
+  ├── GeminiService     (개발용, 현재 기본값)
+  └── AnthropicService  (운영용, 교체 예정)
+```
+
+제공자 교체 시 환경변수만 변경하면 되며 비즈니스 로직은 수정하지 않는다.
+AI 호출 실패 시 최대 2회 재시도 후에도 실패하면 해당 record의 status를 `failed`로 저장한다.
+
+### 비동기 분석 흐름
+
+```
+POST /api/companies/:id/records  → record 생성(status: processing), 즉시 record_id 반환(202)
+        ↓ (backend가 백그라운드로 AI 호출)
+GET /api/records/:id  ← 클라이언트가 2초 간격 폴링
+        ↓
+status: processing → done 전이 시 결과(요약 → 리스크 → 메일 초안) 반환
+```
+
+### JWT 인증
+
+- **Access Token**: 클라이언트 메모리(변수)에 저장, 만료 시 `/api/auth/refresh`로 재발급.
+- **Refresh Token**: httpOnly 쿠키에 저장(JS 접근 불가), 만료 7일.
+- **Rotation**: 재발급 때마다 새 Refresh Token으로 교체해 탈취 토큰의 재사용을 무효화한다.
+- 모든 보호 라우트는 Auth 미들웨어에서 JWT를 검증하며, 관리자 전용 엔드포인트는 추가로 권한을 확인한다.

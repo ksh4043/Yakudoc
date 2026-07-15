@@ -197,12 +197,16 @@ teams ──< users ──< companies ──< records ──< record_results
 
 ## 6. 고도화 예정 기능 (MVP 이후)
 
-- 라인(LINE) 연동
-- PDF / Word 문서 파싱 (레이아웃 유지 변환)
-- 팀 / 부서 단위 공유 기록 관리
-- 회사명 등 주요 정보 변경 이력 (히스토리 테이블)
-- 데이터 활용 BM (input_type 집계 기반 인사이트 리포트 등)
-- 업체 owner 변경 기능 (담당자 퇴사/이직 시 owner 권한 이양)
+각 기능의 상세 명세(DB / API / 화면 / 흐름)는 별도 문서
+[`yakudoc_advanced_spec.md`](./yakudoc_advanced_spec.md)에서 관리한다.
+아래는 목록이며, MVP 확정 설계인 본 문서는 고도화로 신설되는 역할·화면을 본문에 반영하지 않는다.
+
+- 라인(LINE) 연동 — advanced_spec 8장
+- PDF / Word 문서 파싱 (레이아웃 유지 변환) — advanced_spec 7장
+- 팀 / 부서 단위 공유 기록 관리 (+ 업무 배정자 역할 / 배정 페이지) — advanced_spec 3장
+- 회사명 등 주요 정보 변경 이력 (히스토리 테이블) — advanced_spec 5장
+- 데이터 활용 BM (input_type 집계 기반 인사이트 리포트 등) — advanced_spec 6장
+- 업체 owner 변경 기능 (담당자 퇴사/이직 시 owner 권한 이양) — advanced_spec 4장
 
 ---
 

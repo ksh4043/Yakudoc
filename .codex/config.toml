@@ -1,0 +1,31 @@
+# Codex 프로젝트 설정 (Yakudoc)
+# 위치: 리포 루트 .codex/config.toml — 프로젝트를 trust 하면 로드된다.
+# 우선순위: CLI 플래그 > 프로젝트 config(.codex/config.toml) > 프로필 > 사용자 config(~/.codex/config.toml)
+# 프로젝트 지침(AGENTS.md)은 루트에서 자동 로드된다.
+
+# Codex CLI가 사용할 모델. 미지정 시 CLI 기본 모델을 그대로 쓴다.
+# 특정 모델로 고정하고 싶을 때만 주석을 해제하고 CLI에서 쓰는 모델 id를 넣는다.
+# model = "gpt-5.6"
+
+# 승인 정책: 하네스 규칙("직접 수정은 승인 후 진행")과 맞춰 요청 기반 승인.
+#   untrusted | on-request | never
+approval_policy = "on-request"
+
+# 샌드박스: 워크스페이스 내 쓰기 허용, 그 외는 승인 필요.
+#   read-only | workspace-write | danger-full-access
+sandbox_mode = "workspace-write"
+
+[sandbox_workspace_write]
+# npm 설치 / 개발 서버 / 외부 AI·연동 API 호출을 위해 아웃바운드 네트워크 허용.
+# 보안을 더 조이려면 false 로 두고 필요 시 승인으로 전환한다.
+network_access = true
+# 워크스페이스 밖에 추가로 쓰기 허용할 경로가 있으면 여기에 나열한다.
+writable_roots = []
+
+# AGENTS.md에서 프로젝트 지침으로 읽어들이는 최대 바이트.
+# 기본값(32KB)으로 충분하나, 지침이 커지면 아래 주석을 해제해 상향한다.
+# project_doc_max_bytes = 65536
+
+# Windows 샌드박스 모드. 환경에 따라 필요 시 아래 주석을 해제한다.
+# [windows]
+# sandbox = "elevated"

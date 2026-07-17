@@ -51,7 +51,7 @@ export default function CompanyDetailPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { logout } = useAuth()
+  const { user, logout } = useAuth()
 
   const [language, setLanguage] = useState('en')
   const [inputType, setInputType] = useState('text')
@@ -63,10 +63,20 @@ export default function CompanyDetailPage() {
   const [selectedIds, setSelectedIds] = useState([])
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [deleteError, setDeleteError] = useState(null)
+  const [transferOpen, setTransferOpen] = useState(false)
+  const [newOwnerId, setNewOwnerId] = useState('')
+  const [transferError, setTransferError] = useState(null)
 
   const companyQuery = useQuery({
     queryKey: ['company', id],
     queryFn: async () => (await api.get(`/api/companies/${id}`)).data,
+  })
+
+  const transferCandidatesQuery = useQuery({
+    queryKey: ['company', id, 'transfer-candidates'],
+    queryFn: async () =>
+      (await api.get(`/api/companies/${id}/transfer-candidates`)).data.users,
+    enabled: transferOpen,
   })
 
   const recordsQuery = useQuery({
@@ -116,6 +126,24 @@ export default function CompanyDetailPage() {
     },
     onError: (err) => {
       setFormError(err.response?.data?.error ?? '분석 요청에 실패했습니다')
+    },
+  })
+
+  const transferMutation = useMutation({
+    mutationFn: (selectedOwnerId) =>
+      api.post(`/api/companies/${id}/transfer-owner`, {
+        new_owner_id: selectedOwnerId,
+      }),
+    onSuccess: () => {
+      setTransferOpen(false)
+      setNewOwnerId('')
+      setTransferError(null)
+      queryClient.invalidateQueries({ queryKey: ['company', id] })
+    },
+    onError: (err) => {
+      setTransferError(
+        err.response?.data?.error ?? '담당자 이양에 실패했습니다',
+      )
     },
   })
 
@@ -169,12 +197,25 @@ export default function CompanyDetailPage() {
     createMutation.mutate()
   }
 
+  function handleTransferOpenChange(next) {
+    if (transferMutation.isPending) return
+    setTransferOpen(next)
+    if (!next) {
+      setNewOwnerId('')
+      setTransferError(null)
+    }
+  }
+
   async function handleLogout() {
     await logout()
     navigate('/login', { replace: true })
   }
 
   const company = companyQuery.data
+  const transferCandidates = transferCandidatesQuery.data ?? []
+  const selectedCandidate = transferCandidates.find(
+    (candidate) => candidate.id === newOwnerId,
+  )
 
   return (
     <div className="min-h-screen bg-muted/40">
@@ -211,7 +252,18 @@ export default function CompanyDetailPage() {
         {company && (
           <Card>
             <CardHeader>
-              <CardTitle className="text-xl">{company.name}</CardTitle>
+              <div className="flex items-center justify-between gap-4">
+                <CardTitle className="text-xl">{company.name}</CardTitle>
+                {user?.id === company.owner_id && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleTransferOpenChange(true)}
+                  >
+                    담당자 이양
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="flex flex-col gap-2 text-sm">
               <div className="flex gap-6">
@@ -441,6 +493,89 @@ export default function CompanyDetailPage() {
           </CardContent>
         </Card>
       </main>
+
+      <Dialog open={transferOpen} onOpenChange={handleTransferOpenChange}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>담당자를 이양할까요?</DialogTitle>
+            <DialogDescription>
+              {selectedCandidate
+                ? `${selectedCandidate.name} 님에게 업체 담당 권한을 이양합니다. 이 작업은 되돌릴 수 없습니다.`
+                : '새 담당자를 선택하세요. 이 작업은 되돌릴 수 없습니다.'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {transferCandidatesQuery.isLoading && (
+            <p className="text-sm text-muted-foreground">불러오는 중…</p>
+          )}
+
+          {transferCandidatesQuery.isError && (
+            <p className="text-sm text-destructive">
+              {transferCandidatesQuery.error?.response?.data?.error ??
+                '이양 후보를 불러오지 못했습니다'}
+            </p>
+          )}
+
+          {!transferCandidatesQuery.isLoading &&
+            !transferCandidatesQuery.isError &&
+            transferCandidates.length === 0 && (
+              <p className="text-sm text-muted-foreground">
+                이양 가능한 담당자가 없습니다
+              </p>
+            )}
+
+          {transferCandidates.length > 0 && (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="new-owner">새 담당자</Label>
+              <select
+                id="new-owner"
+                value={newOwnerId}
+                onChange={(e) => {
+                  setNewOwnerId(e.target.value)
+                  setTransferError(null)
+                }}
+                disabled={transferMutation.isPending}
+                className="h-9 w-full rounded-lg border border-border bg-background px-3 text-sm shadow-sm outline-none transition-colors focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50"
+              >
+                <option value="">담당자를 선택하세요</option>
+                {transferCandidates.map((candidate) => (
+                  <option key={candidate.id} value={candidate.id}>
+                    {candidate.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {transferError && (
+            <p className="text-sm text-destructive" role="alert">
+              {transferError}
+            </p>
+          )}
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => handleTransferOpenChange(false)}
+              disabled={transferMutation.isPending}
+            >
+              취소
+            </Button>
+            <Button
+              type="button"
+              onClick={() => transferMutation.mutate(newOwnerId)}
+              disabled={
+                transferMutation.isPending ||
+                !newOwnerId ||
+                transferCandidates.length === 0
+              }
+            >
+              {transferMutation.isPending ? '이양 중…' : '이양'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={confirmOpen}

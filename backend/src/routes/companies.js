@@ -13,5 +13,7 @@ router.patch('/:id', companiesController.updateCompany);
 router.delete('/:id', companiesController.deleteCompany);
 router.post('/:id/members', companiesController.addMember);
 router.delete('/:id/members/:userId', companiesController.removeMember);
+router.get('/:id/transfer-candidates', companiesController.getTransferCandidates);
+router.post('/:id/transfer-owner', companiesController.transferOwner);
 
 module.exports = router;

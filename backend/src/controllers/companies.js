@@ -215,4 +215,120 @@ async function removeMember(req, res) {
   }
 }
 
-module.exports = { getCompanies, createCompany, getCompany, updateCompany, deleteCompany, addMember, removeMember };
+async function getTransferCandidates(req, res) {
+  const { id } = req.params;
+  try {
+    const { rows: companies } = await pool.query(
+      `SELECT owner_id FROM companies WHERE id = $1 AND deleted_at IS NULL`,
+      [id]
+    );
+    if (!companies[0]) {
+      return res.status(404).json({ error: '존재하지 않는 리소스입니다' });
+    }
+    if (companies[0].owner_id !== req.user.id) {
+      return res.status(403).json({ error: '권한이 없습니다' });
+    }
+
+    const { rows: users } = await pool.query(
+      `SELECT id, name
+       FROM users
+       WHERE id <> $1 AND status = 'active' AND deleted_at IS NULL
+       ORDER BY name`,
+      [companies[0].owner_id]
+    );
+    return res.status(200).json({ users });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: '서버 오류가 발생했습니다' });
+  }
+}
+
+async function transferOwner(req, res) {
+  const { id } = req.params;
+  const { new_owner_id, keep_as_member = true } = req.body;
+  if (!new_owner_id) {
+    return res.status(400).json({ error: '잘못된 요청입니다' });
+  }
+
+  let client;
+  try {
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    const { rows: companies } = await client.query(
+      `SELECT owner_id
+       FROM companies
+       WHERE id = $1 AND deleted_at IS NULL
+       FOR UPDATE`,
+      [id]
+    );
+    if (!companies[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: '존재하지 않는 리소스입니다' });
+    }
+
+    const currentOwnerId = companies[0].owner_id;
+    if (currentOwnerId !== req.user.id) {
+      await client.query('ROLLBACK');
+      return res.status(403).json({ error: '권한이 없습니다' });
+    }
+    if (new_owner_id === currentOwnerId) {
+      await client.query('ROLLBACK');
+      return res.status(400).json({ error: '잘못된 요청입니다' });
+    }
+
+    const { rows: users } = await client.query(
+      `SELECT id
+       FROM users
+       WHERE id = $1 AND status = 'active' AND deleted_at IS NULL`,
+      [new_owner_id]
+    );
+    if (!users[0]) {
+      await client.query('ROLLBACK');
+      return res.status(404).json({ error: '존재하지 않는 사용자입니다' });
+    }
+
+    const { rows } = await client.query(
+      `UPDATE companies
+       SET owner_id = $1
+       WHERE id = $2 AND deleted_at IS NULL
+       RETURNING id, owner_id`,
+      [new_owner_id, id]
+    );
+
+    if (keep_as_member) {
+      await client.query(
+        `INSERT INTO company_members (company_id, user_id, permission)
+         VALUES ($1, $2, 'edit')
+         ON CONFLICT (company_id, user_id) WHERE deleted_at IS NULL
+         DO UPDATE SET permission = 'edit'`,
+        [id, currentOwnerId]
+      );
+    }
+
+    await client.query('COMMIT');
+    return res.status(200).json(rows[0]);
+  } catch (err) {
+    if (client) {
+      await client.query('ROLLBACK');
+    }
+    console.error(err);
+    return res.status(500).json({ error: '서버 오류가 발생했습니다' });
+  } finally {
+    if (client) {
+      client.release();
+    }
+  }
+}
+
+module.exports = {
+  getCompanies,
+  createCompany,
+  getCompany,
+  updateCompany,
+  deleteCompany,
+  addMember,
+  removeMember,
+  getTransferCandidates,
+  transferOwner,
+};

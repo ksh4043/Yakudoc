@@ -138,7 +138,8 @@ export default function CompanyDetailPage() {
       setTransferOpen(false)
       setNewOwnerId('')
       setTransferError(null)
-      queryClient.invalidateQueries({ queryKey: ['company', id] })
+      queryClient.invalidateQueries({ queryKey: ['companies'] })
+      navigate('/', { replace: true })
     },
     onError: (err) => {
       setTransferError(

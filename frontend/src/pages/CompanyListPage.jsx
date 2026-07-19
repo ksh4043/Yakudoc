@@ -158,6 +158,9 @@ export default function CompanyListPage() {
                   <span className="text-sm text-muted-foreground">
                     {company.industry} · {company.country}
                   </span>
+                  {company.owner_name && (
+                    <span className="text-sm">담당자 {company.owner_name}</span>
+                  )}
                 </CardContent>
               </Card>
             ))}

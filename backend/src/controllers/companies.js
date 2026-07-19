@@ -3,8 +3,10 @@ const pool = require('../db/pool');
 async function getCompanies(req, res) {
   try {
     const { rows } = await pool.query(
-      `SELECT DISTINCT c.id, c.name, c.industry, c.country, c.owner_id, c.created_at
+      `SELECT DISTINCT c.id, c.name, c.industry, c.country, c.owner_id,
+                       u.name AS owner_name, c.created_at
        FROM companies c
+       JOIN users u ON u.id = c.owner_id
        LEFT JOIN company_members cm
          ON cm.company_id = c.id AND cm.deleted_at IS NULL
        WHERE c.deleted_at IS NULL
@@ -245,7 +247,7 @@ async function getTransferCandidates(req, res) {
 
 async function transferOwner(req, res) {
   const { id } = req.params;
-  const { new_owner_id, keep_as_member = true } = req.body;
+  const { new_owner_id } = req.body;
   if (!new_owner_id) {
     return res.status(400).json({ error: '잘못된 요청입니다' });
   }
@@ -295,16 +297,6 @@ async function transferOwner(req, res) {
        RETURNING id, owner_id`,
       [new_owner_id, id]
     );
-
-    if (keep_as_member) {
-      await client.query(
-        `INSERT INTO company_members (company_id, user_id, permission)
-         VALUES ($1, $2, 'edit')
-         ON CONFLICT (company_id, user_id) WHERE deleted_at IS NULL
-         DO UPDATE SET permission = 'edit'`,
-        [id, currentOwnerId]
-      );
-    }
 
     await client.query('COMMIT');
     return res.status(200).json(rows[0]);

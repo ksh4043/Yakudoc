@@ -50,7 +50,7 @@
 | # | 화면명 | 접근 권한 | 설명 |
 |---|--------|-----------|------|
 | 1 | 로그인 | 전체 | 이메일 + 비밀번호 |
-| 2 | 업체 목록 (메인) | 일반 / 관리자 | 등록 업체 리스트, 업체 추가 |
+| 2 | 업체 목록 (메인) | 일반 / 관리자 | 등록 업체 리스트(카드에 담당자 표시), 업체 추가 |
 | 3 | 업체 상세 | 일반 / 관리자 | 업체 정보 + 메인 기능 입력 + 기록 목록 |
 | 4 | 결과 화면 | 일반 / 관리자 | 요약 → 리스크 → 메일 초안 (세로 스크롤) |
 | 5 | 기록 상세 | 일반 / 관리자 | 이전 결과 재열람 |
@@ -419,7 +419,7 @@ Response 200
 {
   companies: [
     { id: string, name: string, industry: string, country: string,
-      owner_id: string, created_at: string }
+      owner_id: string, owner_name: string, created_at: string }
   ]
 }
 ```

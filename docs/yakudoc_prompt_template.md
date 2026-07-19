@@ -87,10 +87,10 @@
 2. (마이그레이션) 스키마 변경 없음(company_history는 기능 3에서 도입).
    이번 작업은 이력 기록 없이 owner_id 이양만 구현하고, 이력 연계는 기능 3에서 추가한다.
 3. (백엔드) POST /api/companies/:id/transfer-owner 구현.
-   - Request: { new_owner_id, keep_as_member?=true }
-   - 권한: 현재 owner 또는 admin(아니면 403)
+   - Request: { new_owner_id }
+   - 권한: 현재 owner 전용(admin도 403)
    - new_owner 없음/비활성 → 404, 자기 자신 이양 → 400
-   - 트랜잭션: owner_id 갱신 → keep_as_member면 기존 owner를 company_members(edit)로 INSERT
+   - 트랜잭션: owner_id 갱신만 수행(기존 owner를 멤버로 남기지 않음)
    - Response 200: { id, owner_id }
 
 ## 제약
@@ -99,10 +99,10 @@
 
 ## 완료 조건 (검증 가능 형태)
 - [ ] owner가 호출 시 200 + owner_id가 new_owner로 바뀜
-- [ ] 제3자(owner/admin 아님) 호출 시 403
+- [ ] owner 아님(admin 포함) 호출 시 403
 - [ ] 존재하지 않는 new_owner_id → 404, 자기 자신 이양 → 400
-- [ ] keep_as_member=true일 때 기존 owner가 company_members(edit)로 남음
-- [ ] 트랜잭션 실패 시 owner_id/멤버가 롤백됨
+- [ ] 이양 후 기존 owner는 접근권 상실(company_members에 남지 않음)
+- [ ] 트랜잭션 실패 시 owner_id가 롤백됨
 
 ## 보고
 - AGENTS.md 4장 보고 형식으로 결과를 보고한다.

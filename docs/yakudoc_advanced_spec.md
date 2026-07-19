@@ -238,8 +238,8 @@ lead: 업무 배정 페이지 → 팀원을 업체 담당으로 배정
 ## 4. 기능 2 — 업체 owner(담당자) 이양
 
 ### 4-1. 개요
-담당자 퇴사/이직 시 업체의 owner 권한을 다른 사용자에게 이양한다. 기존 owner는 접근이 끊기지 않도록
-편집 권한 멤버로 전환한다(선택). 이양 이력은 기능 3(변경 이력)에 기록한다.
+담당자 퇴사/이직 시 업체의 owner 권한을 다른 사용자에게 이양한다. 이양이 완료되면 기존 owner는 해당
+업체에 대한 접근권을 잃는다(이양 처리로 멤버 행을 새로 만들지 않는다). 이양 이력은 기능 3(변경 이력)에 기록한다.
 
 **이양 권한은 현재 owner 전용이다.** `admin`은 사용자 조직상의 상급자가 아니라 **앱을 운영·관리하는
 역할**이므로 업체 담당자 이양이라는 업무 행위에 관여하지 않는다. 조직상 상급자에 해당하는 권한은
@@ -250,13 +250,8 @@ lead: 업무 배정 페이지 → 팀원을 업체 담당으로 배정
 > 이양할 수단이 없다. 기능 1에서 `lead` 분기가 추가되면 해소된다.
 
 ### 4-2. DB 변경
-전용 테이블 없음. `companies.owner_id` 갱신 + `company_history`(기능 3)에 로그. 기존 owner를
-멤버로 남길 경우 `company_members`에 INSERT.
-
-> `company_members`에는 `(company_id, user_id) WHERE deleted_at IS NULL` 조건부 유니크 인덱스
-> (`company_members_unique_active`)가 있다. 기존 owner에게 이미 활성 멤버 행이 있을 수 있으므로
-> INSERT는 **upsert**로 처리해 활성 행이 있으면 `permission`만 `edit`으로 갱신한다
-> (3-3 배정 API의 "이미 활성 배정이면 permission만 갱신"과 동일한 취지).
+전용 테이블 없음. `companies.owner_id` 갱신 + `company_history`(기능 3)에 로그.
+이양 처리는 기존 owner를 멤버로 남기지 않으므로 `company_members`에는 손대지 않는다.
 
 ### 4-3. API 명세
 
@@ -274,14 +269,14 @@ Response 404  { error: "존재하지 않는 리소스입니다" }  // 업체 없
 
 **POST /api/companies/:id/transfer-owner**
 ```
-Request  { new_owner_id: string, keep_as_member?: boolean }   // keep_as_member 기본 true
+Request  { new_owner_id: string }
 Response 200  { id, owner_id }
 Response 400  { error: "잘못된 요청입니다" }          // 자기 자신에게 이양 등
 Response 403  { error: "권한이 없습니다" }            // 현재 owner 아님(admin 포함)
 Response 404  { error: "존재하지 않는 사용자입니다" }  // new_owner 없음/비활성
 ```
 - 권한: 현재 owner **전용**. admin도 403이다(4-1 참조). 팀 `lead` 분기는 기능 1에서 추가.
-- 트랜잭션: `owner_id` 갱신 → (keep_as_member면 기존 owner를 `company_members` edit로 upsert) → `company_history`에 `field='owner_id'` 이력 INSERT.
+- 트랜잭션: `owner_id` 갱신 → `company_history`에 `field='owner_id'` 이력 INSERT. 기존 owner를 멤버로 남기지 않는다.
 
 ### 4-4. 화면
 업체 상세에 "담당자 이양" 액션(현재 owner에게만 노출). 대상 사용자 선택 → 확인 모달.
@@ -290,7 +285,7 @@ Response 404  { error: "존재하지 않는 사용자입니다" }  // new_owner 
 ### 4-5. 흐름
 ```
 현재 owner → 업체 상세 "담당자 이양" → 후보 조회 → new_owner 선택
-   → owner_id 변경 + (기존 owner 멤버 전환) + 이력 기록
+   → owner_id 변경 + 이력 기록 (기존 owner는 접근권 상실)
 ```
 
 ---

@@ -64,20 +64,24 @@ MVP는 전역 역할 `user` / `admin` 2단계다. 고도화는 여기에 **팀 �
 | 팀 | `member` | 소속 팀 | 팀 소속 일반 팀원 |
 
 - 전역 역할(`users.role`)과 팀 역할(`users.team_role`)은 **직교**한다. 전역 `user`이면서 팀 `lead`일 수 있다.
-- `admin`은 모든 팀의 배정 권한을 겸한다.
+- `admin`은 계정·팀 관리와 전체 인사이트 열람(시스템 영역)만 담당하며, 업체 업무 행위에는 관여하지 않는다.
 - "팀장 그 이상 직급(부서장 등)"의 다단계 직급은 향후 확장 예약으로 두고, 1차 고도화는 `member`/`lead` 2단계만 구현한다.
 
 ### 접근 판정 요약
 
 | 동작 | 허용 대상 |
 |------|-----------|
-| 업체 접근(조회/기록) | 업체 owner · 활성 `company_members` · admin |
+| 업체 접근(조회/기록) | 업체 owner · 활성 `company_members` |
 | 업체 owner 이양 | 현재 owner **전용** (기능 1 이후 해당 팀 `lead` 추가). admin 불가 — 4-1 참조 |
-| 업무 배정/해제 | 해당 팀 `lead` · admin |
+| 업무 배정/해제 | 해당 팀 `lead` |
 | 팀 CRUD / 팀원 배치 / 역할 변경 | admin |
-| 개인(personal) 기록 열람 | 작성자(created_by) · 업체 owner · admin |
+| 개인(personal) 기록 열람 | 작성자(created_by) · 업체 owner |
 | 팀(team) 기록 열람 | 업체 접근 권한자 전원 |
 | 인사이트 리포트 | admin (팀 범위는 해당 팀 `lead`) |
+
+> `admin`은 앱을 운영·관리하는 역할이며 업체 업무의 주체가 아니다(4-1 참조). 업체 접근·기록 열람·
+> 업무 배정 등 업무 행위에는 관여하지 않는다. 테스트 시나리오 등으로 admin 접근이 필요해지면
+> 이 표를 먼저 갱신한 뒤 코드에 반영한다.
 
 ---
 
@@ -87,7 +91,7 @@ MVP 6개 화면(architecture 4-2)에 다음을 **추가**한다.
 
 | # | 화면명 | 접근 권한 | 관련 기능 |
 |---|--------|-----------|-----------|
-| 7 | 업무 배정 페이지 | 팀 `lead` / admin | 기능 1 |
+| 7 | 업무 배정 페이지 | 팀 `lead` | 기능 1 |
 | 8 | 팀 관리 | admin | 기능 1 |
 | 9 | 인사이트 대시보드 | admin / 팀 `lead` | 기능 4 |
 
@@ -107,7 +111,7 @@ MVP 6개 화면(architecture 4-2)에 다음을 **추가**한다.
 - 배정 실체: 기존 `company_members` 행으로 표현하되, 배정자가 만든 행은 `assigned_by`에 배정자 id를 남겨
   MVP의 owner 직접 초대(`assigned_by IS NULL`)와 구분한다.
 - 기록 공유 범위: `records.owner_type`으로 구분.
-  - `personal`: 작성자 · 업체 owner · admin만 열람
+  - `personal`: 작성자 · 업체 owner만 열람
   - `team`: 업체 접근 권한자 전원 열람(팀 공유)
 
 ### 3-2. DB 변경
@@ -179,7 +183,7 @@ Response 200  { user_id, team_role }
 Response 200  { message: "팀에서 제외되었습니다" }
 ```
 
-#### 업무 배정 (팀 lead / admin)
+#### 업무 배정 (팀 lead)
 
 **GET /api/teams/:id/board** — 배정 페이지용 집계
 ```
@@ -198,7 +202,7 @@ Response 200
 ```
 Request  { user_id: string, permission: "read" | "edit" }
 Response 201  { company_id, user_id, permission, assigned_by }
-Response 403  { error: "권한이 없습니다" }        // lead/admin 아님, 또는 다른 팀 업체
+Response 403  { error: "권한이 없습니다" }        // lead 아님, 또는 다른 팀 업체
 Response 404  { error: "존재하지 않는 사용자입니다" }
 ```
 > `company_members`에 `assigned_by = 요청자` 로 INSERT. 이미 활성 배정이면 `permission`만 갱신.
@@ -212,11 +216,11 @@ Response 200  { message: "배정이 해제되었습니다" }
 기존 `checkCompanyAccess`(owner OR 활성 company_member)는 배정 = company_members 이므로 그대로 동작한다.
 추가로 **기록 열람 시 owner_type 분기**를 적용한다.
 
-- `getRecord` / `listRecords`: `owner_type = 'personal'` 인 기록은 `created_by = 요청자` 또는 업체 owner 또는 admin만 반환. `owner_type = 'team'` 인 기록은 업체 접근 권한자 전원에게 반환.
-- 배정/해제 권한: 요청자가 대상 업체 owner의 팀에서 `team_role = 'lead'` 이거나 admin일 때만 허용.
+- `getRecord` / `listRecords`: `owner_type = 'personal'` 인 기록은 `created_by = 요청자` 또는 업체 owner만 반환. `owner_type = 'team'` 인 기록은 업체 접근 권한자 전원에게 반환.
+- 배정/해제 권한: 요청자가 대상 업체 owner의 팀에서 `team_role = 'lead'` 일 때만 허용.
 
 ### 3-5. 화면 — 업무 배정 페이지 (#7)
-- 접근: 팀 `lead` / admin
+- 접근: 팀 `lead`
 - 구성: 좌측 팀원 목록, 우측 팀 범위 업체 목록. 업체별 담당 팀원 배정/해제(권한 read/edit 선택).
 - `GET /api/teams/:id/board`로 초기 로드, 배정/해제는 assignees API 호출 후 부분 갱신.
 
@@ -481,7 +485,7 @@ Response 200  { message: "LINE 연동이 해제되었습니다" }
 |------|------|------|
 | `users` | `ADD COLUMN team_role` (member/lead) | 1 |
 | `company_members` | `ADD COLUMN assigned_by` | 1 |
-| `company_history` | 신규 테이블 + 인덱스 | 5 |
+| `company_history` | 신규 테이블 + 인덱스 | 3 |
 | `line_links` | 신규 테이블 + 조건부 유니크 인덱스 2종 | 6 |
 | `teams` / `users.team_id` / `records.owner_type` | 스키마 변경 없이 의미 활성화 | 1 |
 

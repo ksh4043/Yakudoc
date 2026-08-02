@@ -10,6 +10,7 @@ router.get('/', companiesController.getCompanies);
 router.post('/', companiesController.createCompany);
 router.get('/:id', companiesController.getCompany);
 router.patch('/:id', companiesController.updateCompany);
+router.get('/:id/history', companiesController.getCompanyHistory);
 router.delete('/:id', companiesController.deleteCompany);
 router.post('/:id/members', companiesController.addMember);
 router.delete('/:id/members/:userId', companiesController.removeMember);

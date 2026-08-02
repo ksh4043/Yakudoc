@@ -100,6 +100,20 @@ const sql = `
     created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     expires_at  TIMESTAMPTZ NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS company_history (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    company_id  UUID        NOT NULL REFERENCES companies(id),
+    changed_by  UUID        NOT NULL REFERENCES users(id),
+    field       VARCHAR(30) NOT NULL
+                            CHECK (field IN ('name', 'industry', 'country', 'memo', 'owner_id')),
+    old_value   TEXT,
+    new_value   TEXT,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE INDEX IF NOT EXISTS company_history_company_idx
+    ON company_history (company_id, created_at DESC);
 `;
 
 async function migrate() {

@@ -87,15 +87,25 @@ async function updateCompany(req, res) {
   if (name === undefined && industry === undefined && country === undefined && memo === undefined) {
     return res.status(400).json({ error: '잘못된 요청입니다' });
   }
+
+  let client;
   try {
-    const { rows: companies } = await pool.query(
-      `SELECT owner_id FROM companies WHERE id = $1 AND deleted_at IS NULL`,
+    client = await pool.connect();
+    await client.query('BEGIN');
+
+    const { rows: companies } = await client.query(
+      `SELECT id, owner_id, name, industry, country, memo
+       FROM companies
+       WHERE id = $1 AND deleted_at IS NULL
+       FOR UPDATE`,
       [id]
     );
     if (!companies[0]) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: '존재하지 않는 리소스입니다' });
     }
     if (companies[0].owner_id !== req.user.id) {
+      await client.query('ROLLBACK');
       return res.status(403).json({ error: '권한이 없습니다' });
     }
 
@@ -108,14 +118,78 @@ async function updateCompany(req, res) {
     if (memo !== undefined) { fields.push(`memo = $${idx++}`); values.push(memo); }
     values.push(id);
 
-    const { rows } = await pool.query(
+    const { rows } = await client.query(
       `UPDATE companies
        SET ${fields.join(', ')}
        WHERE id = $${idx} AND deleted_at IS NULL
        RETURNING id, name, industry, country, memo`,
       values
     );
+
+    const previousCompany = companies[0];
+    const updatedCompany = rows[0];
+    for (const field of ['name', 'industry', 'country', 'memo']) {
+      if (req.body[field] !== undefined && previousCompany[field] !== updatedCompany[field]) {
+        await client.query(
+          `INSERT INTO company_history
+             (company_id, changed_by, field, old_value, new_value)
+           VALUES ($1, $2, $3, $4, $5)`,
+          [id, req.user.id, field, previousCompany[field], updatedCompany[field]]
+        );
+      }
+    }
+
+    await client.query('COMMIT');
     return res.status(200).json(rows[0]);
+  } catch (err) {
+    if (client) {
+      await client.query('ROLLBACK');
+    }
+    console.error(err);
+    return res.status(500).json({ error: '서버 오류가 발생했습니다' });
+  } finally {
+    if (client) {
+      client.release();
+    }
+  }
+}
+
+async function getCompanyHistory(req, res) {
+  const { id } = req.params;
+  try {
+    const { rows: companies } = await pool.query(
+      `SELECT owner_id
+       FROM companies
+       WHERE id = $1 AND deleted_at IS NULL`,
+      [id]
+    );
+    if (!companies[0]) {
+      return res.status(404).json({ error: '존재하지 않는 리소스입니다' });
+    }
+
+    const isOwner = companies[0].owner_id === req.user.id;
+    if (!isOwner) {
+      const { rows: memberCheck } = await pool.query(
+        `SELECT id
+         FROM company_members
+         WHERE company_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+        [id, req.user.id]
+      );
+      if (memberCheck.length === 0) {
+        return res.status(403).json({ error: '권한이 없습니다' });
+      }
+    }
+
+    const { rows: history } = await pool.query(
+      `SELECT ch.field, ch.old_value, ch.new_value, ch.changed_by,
+              u.name AS changed_by_name, ch.created_at
+       FROM company_history ch
+       JOIN users u ON u.id = ch.changed_by
+       WHERE ch.company_id = $1
+       ORDER BY ch.created_at DESC`,
+      [id]
+    );
+    return res.status(200).json({ history });
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: '서버 오류가 발생했습니다' });
@@ -298,6 +372,13 @@ async function transferOwner(req, res) {
       [new_owner_id, id]
     );
 
+    await client.query(
+      `INSERT INTO company_history
+         (company_id, changed_by, field, old_value, new_value)
+       VALUES ($1, $2, 'owner_id', $3, $4)`,
+      [id, req.user.id, currentOwnerId, new_owner_id]
+    );
+
     await client.query('COMMIT');
     return res.status(200).json(rows[0]);
   } catch (err) {
@@ -318,6 +399,7 @@ module.exports = {
   createCompany,
   getCompany,
   updateCompany,
+  getCompanyHistory,
   deleteCompany,
   addMember,
   removeMember,

@@ -334,6 +334,10 @@ Response 200
 ```
 - 권한: 업체 접근 권한자.
 - 이력 생성 자체는 별도 엔드포인트 없이 PATCH/이양 처리 내부(같은 트랜잭션)에서 수행.
+- **정렬**: `created_at DESC`(최신순). 단, 한 번의 PATCH로 여러 필드가 바뀌면 같은 트랜잭션에서
+  INSERT되어 `created_at`(기본값 `NOW()` = **트랜잭션 시작 시각**)이 완전히 동일해진다. 이때 순서가
+  비결정적이 되지 않도록 **2차 정렬 기준**을 둔다: `name → industry → country → memo → owner_id`
+  (업체 상세 폼의 필드 순서). 같은 입력에 대해 응답 순서는 항상 동일해야 한다.
 
 ### 5-4. 기록 로직
 `PATCH /api/companies/:id` 처리 시 변경 전/후를 비교해 실제로 바뀐 필드만 `company_history`에 INSERT.

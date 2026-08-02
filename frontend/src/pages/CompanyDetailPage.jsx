@@ -35,6 +35,14 @@ const STATUS_LABEL = {
   failed: '실패',
 }
 
+const HISTORY_FIELD_LABEL = {
+  name: '업체명',
+  industry: '업종',
+  country: '국가',
+  memo: '메모',
+  owner_id: '담당자',
+}
+
 const STATUS_CLASS = {
   processing: 'bg-muted text-muted-foreground',
   done: 'bg-primary/10 text-primary',
@@ -83,6 +91,12 @@ export default function CompanyDetailPage() {
     queryKey: ['companies', id, 'records'],
     queryFn: async () =>
       (await api.get(`/api/companies/${id}/records`)).data.records,
+  })
+
+  const historyQuery = useQuery({
+    queryKey: ['company', id, 'history'],
+    queryFn: async () =>
+      (await api.get(`/api/companies/${id}/history`)).data.history,
   })
 
   // 분석 요청 후 status가 done/failed가 될 때까지 2초 간격 폴링
@@ -491,6 +505,49 @@ export default function CompanyDetailPage() {
                 </div>
               )
             })}
+          </CardContent>
+        </Card>
+
+        {/* 변경 이력 */}
+        <Card>
+          <CardHeader>
+            <CardTitle>변경 이력</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-2">
+            {historyQuery.isLoading && (
+              <p className="text-sm text-muted-foreground">불러오는 중…</p>
+            )}
+            {historyQuery.isError && (
+              <p className="text-sm text-destructive">
+                변경 이력을 불러오지 못했습니다
+              </p>
+            )}
+            {historyQuery.data?.length === 0 && (
+              <p className="py-6 text-center text-sm text-muted-foreground">
+                변경 이력이 없습니다
+              </p>
+            )}
+            {historyQuery.data?.map((history, index) => (
+              <div
+                key={`${history.created_at}-${history.field}-${index}`}
+                className="flex flex-col gap-2 rounded-lg border border-border px-4 py-3 text-sm"
+              >
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span className="font-medium">
+                    {HISTORY_FIELD_LABEL[history.field] ?? history.field}
+                  </span>
+                  <span>
+                    {history.field === 'owner_id'
+                      ? '담당자가 변경되었습니다'
+                      : `${history.old_value === null || history.old_value === '' ? '(없음)' : history.old_value} → ${history.new_value === null || history.new_value === '' ? '(없음)' : history.new_value}`}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                  <span>{history.changed_by_name}</span>
+                  <span>{formatDate(history.created_at)}</span>
+                </div>
+              </div>
+            ))}
           </CardContent>
         </Card>
       </main>

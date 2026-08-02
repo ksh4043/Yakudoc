@@ -186,7 +186,14 @@ async function getCompanyHistory(req, res) {
        FROM company_history ch
        JOIN users u ON u.id = ch.changed_by
        WHERE ch.company_id = $1
-       ORDER BY ch.created_at DESC`,
+       ORDER BY ch.created_at DESC,
+                CASE ch.field
+                  WHEN 'name' THEN 1
+                  WHEN 'industry' THEN 2
+                  WHEN 'country' THEN 3
+                  WHEN 'memo' THEN 4
+                  WHEN 'owner_id' THEN 5
+                END`,
       [id]
     );
     return res.status(200).json({ history });

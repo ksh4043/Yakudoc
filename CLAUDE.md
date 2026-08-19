@@ -2,7 +2,7 @@
 
 > 이 문서는 Claude가 **새 세션을 시작할 때마다** 이 프로젝트의 방향을 빠르게 파악하기 위한 것이다.
 > 개요·목적·타겟·스택 등 핵심만 간략히 담고, 상세 규칙(품질 체크리스트·재시도 규칙·보고 형식 등)은
-> Codex용 `AGENTS.md`와 `docs/`의 각 설계 문서에 위임한다. 아래 내용이 그 문서들과 일부 겹치더라도
+> `AGENTS.md`와 `docs/`의 각 설계 문서에 위임한다. 아래 내용이 그 문서들과 일부 겹치더라도
 > 그건 중복이 아니라 — 여기서는 "무엇을·왜"를, 그쪽에서는 "어떻게"를 다루는 역할 분리다.
 
 ## 프로젝트 개요
@@ -74,8 +74,7 @@ docker compose up    # db + backend + frontend 전체 기동
 - MVP 확정 설계(DB/API/화면/인증): `docs/yakudoc_architecture.md`
 - 고도화 설계 명세: `docs/yakudoc_advanced_spec.md`
 - 작업 하네스 규칙(원본): `docs/yakudoc_harness.md`
-- Codex 작업 프롬프트 규격: `docs/yakudoc_prompt_template.md`
-- Codex용 상세 지침(품질 체크리스트·재시도·보고 형식): `AGENTS.md`
+- 상세 지침(품질 체크리스트·재시도·보고 형식): `AGENTS.md`
 
 ## 하지 말아야 할 것
 
@@ -96,11 +95,9 @@ docker compose up    # db + backend + frontend 전체 기동
 
 ## 내 역할
 
-직접 코딩하지 않는다. Codex 작업 에이전트에게 넘길 **작업 프롬프트를 작성**하고, 그 결과를
-**독립 검증**한다. (규격: `docs/yakudoc_prompt_template.md`)
-
-작업 프롬프트는 **파일로 만들지 않는다.** 채팅에 코드블록으로 전문을 출력한다.
-저장소에도, 임시 폴더에도 만들지 않는다.
+**직접 코딩한다.** Codex 작업 에이전트는 거치지 않는다. 설계 문서(`architecture.md`/
+`advanced_spec.md`)와 `AGENTS.md`/`docs/yakudoc_harness.md`의 품질 체크리스트·재시도 규칙을
+스스로 준수하며 구현한다.
 
 ## 지시 없이 하지 않을 것
 

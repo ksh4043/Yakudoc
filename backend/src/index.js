@@ -8,6 +8,7 @@ const usersRouter = require('./routes/users');
 const companiesRouter = require('./routes/companies');
 const { companyRecordsRouter, recordRouter } = require('./routes/records');
 const tagsRouter = require('./routes/tags');
+const teamsRouter = require('./routes/teams');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -25,6 +26,7 @@ app.use('/api/companies', companiesRouter);
 app.use('/api/companies', companyRecordsRouter);
 app.use('/api/records', recordRouter);
 app.use('/api/tags', tagsRouter);
+app.use('/api/teams', teamsRouter);
 
 app.get('/health', (req, res) => {
   res.json({ status: 'ok' });

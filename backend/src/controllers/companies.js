@@ -401,6 +401,112 @@ async function transferOwner(req, res) {
   }
 }
 
+async function checkTeamLeadOfCompany(companyId, requesterId) {
+  const { rows: companies } = await pool.query(
+    `SELECT c.owner_id, ou.team_id AS owner_team_id
+     FROM companies c
+     JOIN users ou ON ou.id = c.owner_id
+     WHERE c.id = $1 AND c.deleted_at IS NULL`,
+    [companyId]
+  );
+  if (!companies[0]) {
+    return { exists: false, isLead: false };
+  }
+  const { owner_team_id: ownerTeamId } = companies[0];
+  if (!ownerTeamId) {
+    return { exists: true, isLead: false };
+  }
+  const { rows: requester } = await pool.query(
+    `SELECT team_id, team_role FROM users WHERE id = $1 AND deleted_at IS NULL`,
+    [requesterId]
+  );
+  const isLead = !!requester[0] && requester[0].team_id === ownerTeamId && requester[0].team_role === 'lead';
+  return { exists: true, isLead };
+}
+
+async function addAssignee(req, res) {
+  const { id } = req.params;
+  const { user_id, permission } = req.body;
+  if (!user_id || !permission) {
+    return res.status(400).json({ error: '잘못된 요청입니다' });
+  }
+  try {
+    const { exists, isLead } = await checkTeamLeadOfCompany(id, req.user.id);
+    if (!exists) {
+      return res.status(404).json({ error: '존재하지 않는 리소스입니다' });
+    }
+    if (!isLead) {
+      return res.status(403).json({ error: '권한이 없습니다' });
+    }
+
+    const { rows: users } = await pool.query(
+      `SELECT id FROM users WHERE id = $1 AND deleted_at IS NULL`,
+      [user_id]
+    );
+    if (users.length === 0) {
+      return res.status(404).json({ error: '존재하지 않는 사용자입니다' });
+    }
+
+    const { rows: existing } = await pool.query(
+      `SELECT id FROM company_members
+       WHERE company_id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+      [id, user_id]
+    );
+
+    let row;
+    if (existing[0]) {
+      const { rows } = await pool.query(
+        `UPDATE company_members
+         SET permission = $1, assigned_by = $2
+         WHERE id = $3
+         RETURNING company_id, user_id, permission, assigned_by`,
+        [permission, req.user.id, existing[0].id]
+      );
+      row = rows[0];
+    } else {
+      const { rows } = await pool.query(
+        `INSERT INTO company_members (company_id, user_id, permission, assigned_by)
+         VALUES ($1, $2, $3, $4)
+         RETURNING company_id, user_id, permission, assigned_by`,
+        [id, user_id, permission, req.user.id]
+      );
+      row = rows[0];
+    }
+    return res.status(201).json(row);
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: '서버 오류가 발생했습니다' });
+  }
+}
+
+async function removeAssignee(req, res) {
+  const { id, userId } = req.params;
+  try {
+    const { exists, isLead } = await checkTeamLeadOfCompany(id, req.user.id);
+    if (!exists) {
+      return res.status(404).json({ error: '존재하지 않는 리소스입니다' });
+    }
+    if (!isLead) {
+      return res.status(403).json({ error: '권한이 없습니다' });
+    }
+
+    const { rows } = await pool.query(
+      `UPDATE company_members
+       SET deleted_at = NOW()
+       WHERE company_id = $1 AND user_id = $2 AND deleted_at IS NULL
+       RETURNING id`,
+      [id, userId]
+    );
+    if (rows.length === 0) {
+      return res.status(404).json({ error: '존재하지 않는 리소스입니다' });
+    }
+    return res.status(200).json({ message: '배정이 해제되었습니다' });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({ error: '서버 오류가 발생했습니다' });
+  }
+}
+
 module.exports = {
   getCompanies,
   createCompany,
@@ -412,4 +518,6 @@ module.exports = {
   removeMember,
   getTransferCandidates,
   transferOwner,
+  addAssignee,
+  removeAssignee,
 };

@@ -16,5 +16,7 @@ router.post('/:id/members', companiesController.addMember);
 router.delete('/:id/members/:userId', companiesController.removeMember);
 router.get('/:id/transfer-candidates', companiesController.getTransferCandidates);
 router.post('/:id/transfer-owner', companiesController.transferOwner);
+router.post('/:id/assignees', companiesController.addAssignee);
+router.delete('/:id/assignees/:userId', companiesController.removeAssignee);
 
 module.exports = router;

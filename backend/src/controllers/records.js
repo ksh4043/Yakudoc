@@ -20,13 +20,13 @@ async function isCompanyMember(companyId, userId) {
 async function checkCompanyAccess(companyId, userId) {
   const company = await getCompanyOwner(companyId);
   if (!company) {
-    return { exists: false, hasAccess: false };
+    return { exists: false, hasAccess: false, ownerId: null };
   }
   if (company.owner_id === userId) {
-    return { exists: true, hasAccess: true };
+    return { exists: true, hasAccess: true, ownerId: company.owner_id };
   }
   const isMember = await isCompanyMember(companyId, userId);
-  return { exists: true, hasAccess: isMember };
+  return { exists: true, hasAccess: isMember, ownerId: company.owner_id };
 }
 
 async function processRecordAsync(recordId, { input_type, language, content, fileBuffer, mimeType }) {
@@ -77,7 +77,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 
 async function createRecord(req, res) {
   const { id: companyId } = req.params;
-  const { input_type, language, content, tag_ids } = req.body;
+  const { input_type, language, content, tag_ids, owner_type } = req.body;
   const file = req.file;
 
   if (!['text', 'file', 'image'].includes(input_type) || !['en', 'ja'].includes(language)) {
@@ -89,6 +89,10 @@ async function createRecord(req, res) {
   if (input_type !== 'text' && !file) {
     return res.status(400).json({ error: '잘못된 요청입니다' });
   }
+  if (owner_type !== undefined && !['personal', 'team'].includes(owner_type)) {
+    return res.status(400).json({ error: '잘못된 요청입니다' });
+  }
+  const recordOwnerType = owner_type || 'personal';
 
   const tagIdList = tag_ids
     ? [...new Set(tag_ids.split(',').map((t) => t.trim()).filter(Boolean))]
@@ -121,10 +125,10 @@ async function createRecord(req, res) {
     try {
       await client.query('BEGIN');
       const { rows } = await client.query(
-        `INSERT INTO records (company_id, created_by, input_type, language, status)
-         VALUES ($1, $2, $3, $4, 'processing')
+        `INSERT INTO records (company_id, created_by, input_type, language, owner_type, status)
+         VALUES ($1, $2, $3, $4, $5, 'processing')
          RETURNING id`,
-        [companyId, req.user.id, input_type, language]
+        [companyId, req.user.id, input_type, language, recordOwnerType]
       );
       recordId = rows[0].id;
 
@@ -163,7 +167,7 @@ async function getRecord(req, res) {
   const { id } = req.params;
   try {
     const { rows } = await pool.query(
-      `SELECT id, company_id, status, language, created_at
+      `SELECT id, company_id, created_by, owner_type, status, language, created_at
        FROM records
        WHERE id = $1 AND deleted_at IS NULL`,
       [id]
@@ -173,11 +177,14 @@ async function getRecord(req, res) {
       return res.status(404).json({ error: '존재하지 않는 리소스입니다' });
     }
 
-    const { exists, hasAccess } = await checkCompanyAccess(record.company_id, req.user.id);
+    const { exists, hasAccess, ownerId } = await checkCompanyAccess(record.company_id, req.user.id);
     if (!exists) {
       return res.status(404).json({ error: '존재하지 않는 리소스입니다' });
     }
     if (!hasAccess) {
+      return res.status(403).json({ error: '권한이 없습니다' });
+    }
+    if (record.owner_type === 'personal' && record.created_by !== req.user.id && ownerId !== req.user.id) {
       return res.status(403).json({ error: '권한이 없습니다' });
     }
 
@@ -206,6 +213,7 @@ async function getRecord(req, res) {
       company_id: record.company_id,
       status: 'done',
       language: record.language,
+      owner_type: record.owner_type,
       results,
       tags,
       created_at: record.created_at,
@@ -219,20 +227,22 @@ async function getRecord(req, res) {
 async function listRecords(req, res) {
   const { id: companyId } = req.params;
   try {
-    const { exists, hasAccess } = await checkCompanyAccess(companyId, req.user.id);
+    const { exists, hasAccess, ownerId } = await checkCompanyAccess(companyId, req.user.id);
     if (!exists) {
       return res.status(404).json({ error: '존재하지 않는 리소스입니다' });
     }
     if (!hasAccess) {
       return res.status(403).json({ error: '권한이 없습니다' });
     }
+    const isOwner = ownerId === req.user.id;
 
     const { rows: records } = await pool.query(
-      `SELECT id, input_type, language, status, created_at
+      `SELECT id, input_type, language, owner_type, status, created_at
        FROM records
        WHERE company_id = $1 AND deleted_at IS NULL
+         AND (owner_type = 'team' OR created_by = $2 OR $3)
        ORDER BY created_at DESC`,
-      [companyId]
+      [companyId, req.user.id, isOwner]
     );
 
     if (records.length === 0) {
@@ -258,6 +268,7 @@ async function listRecords(req, res) {
         id: r.id,
         input_type: r.input_type,
         language: r.language,
+        owner_type: r.owner_type,
         status: r.status,
         tags: tagsByRecord[r.id] || [],
         created_at: r.created_at,

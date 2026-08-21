@@ -101,6 +101,13 @@ const sql = `
     expires_at  TIMESTAMPTZ NOT NULL
   );
 
+  ALTER TABLE users
+    ADD COLUMN IF NOT EXISTS team_role VARCHAR(10) NOT NULL DEFAULT 'member'
+      CHECK (team_role IN ('member', 'lead'));
+
+  ALTER TABLE company_members
+    ADD COLUMN IF NOT EXISTS assigned_by UUID REFERENCES users(id);
+
   CREATE TABLE IF NOT EXISTS company_history (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     company_id  UUID        NOT NULL REFERENCES companies(id),

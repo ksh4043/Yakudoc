@@ -16,7 +16,7 @@ async function login(req, res) {
   }
   try {
     const { rows } = await pool.query(
-      `SELECT id, email, password_hash, name, role, status
+      `SELECT id, email, password_hash, name, role, status, team_id, team_role
        FROM users
        WHERE email = $1 AND deleted_at IS NULL`,
       [email]
@@ -30,7 +30,10 @@ async function login(req, res) {
       return res.status(403).json({ error: '비활성화된 계정입니다' });
     }
     const accessToken = jwt.sign(
-      { sub: user.id, id: user.id, email: user.email, name: user.name, role: user.role },
+      {
+        sub: user.id, id: user.id, email: user.email, name: user.name, role: user.role,
+        team_id: user.team_id, team_role: user.team_role,
+      },
       process.env.JWT_SECRET,
       { expiresIn: '1h' }
     );
@@ -47,7 +50,7 @@ async function login(req, res) {
     res.cookie('refresh_token', refreshToken, COOKIE_OPTIONS);
     return res.status(200).json({
       access_token: accessToken,
-      user: { id: user.id, name: user.name, role: user.role },
+      user: { id: user.id, name: user.name, role: user.role, team_id: user.team_id, team_role: user.team_role },
     });
   } catch (err) {
     console.error(err);
@@ -75,7 +78,7 @@ async function refresh(req, res) {
     }
     const { id: tokenId, user_id: userId } = rows[0];
     const { rows: userRows } = await pool.query(
-      `SELECT id, email, name, role FROM users
+      `SELECT id, email, name, role, team_id, team_role FROM users
        WHERE id = $1 AND deleted_at IS NULL AND status = 'active'`,
       [userId]
     );
@@ -84,7 +87,10 @@ async function refresh(req, res) {
     }
     const user = userRows[0];
     const newAccessToken = jwt.sign(
-      { sub: user.id, id: user.id, email: user.email, name: user.name, role: user.role },
+      {
+        sub: user.id, id: user.id, email: user.email, name: user.name, role: user.role,
+        team_id: user.team_id, team_role: user.team_role,
+      },
       process.env.JWT_SECRET,
       { expiresIn: '1h' }
     );

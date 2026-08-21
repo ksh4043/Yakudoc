@@ -29,6 +29,13 @@ const INPUT_TYPES = [
   { value: 'image', label: '이미지' },
 ]
 
+const OWNER_TYPES = [
+  { value: 'personal', label: '개인' },
+  { value: 'team', label: '팀 공유' },
+]
+
+const OWNER_TYPE_LABEL = { personal: '개인', team: '팀 공유' }
+
 const STATUS_LABEL = {
   processing: '분석 중',
   done: '완료',
@@ -63,6 +70,7 @@ export default function CompanyDetailPage() {
 
   const [language, setLanguage] = useState('en')
   const [inputType, setInputType] = useState('text')
+  const [ownerType, setOwnerType] = useState('personal')
   const [content, setContent] = useState('')
   const [file, setFile] = useState(null)
   const [formError, setFormError] = useState(null)
@@ -123,6 +131,7 @@ export default function CompanyDetailPage() {
       const fd = new FormData()
       fd.append('input_type', inputType)
       fd.append('language', language)
+      fd.append('owner_type', ownerType)
       if (inputType === 'text') {
         fd.append('content', content.trim())
       } else {
@@ -345,6 +354,24 @@ export default function CompanyDetailPage() {
                 </div>
               </div>
 
+              <div className="flex flex-col gap-2">
+                <Label>공유 범위</Label>
+                <div className="flex gap-2">
+                  {OWNER_TYPES.map((opt) => (
+                    <Button
+                      key={opt.value}
+                      type="button"
+                      variant={ownerType === opt.value ? 'default' : 'outline'}
+                      size="sm"
+                      onClick={() => setOwnerType(opt.value)}
+                      disabled={isProcessing}
+                    >
+                      {opt.label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
               {inputType === 'text' ? (
                 <div className="flex flex-col gap-2">
                   <Label htmlFor="content">문서 내용</Label>
@@ -481,6 +508,8 @@ export default function CompanyDetailPage() {
                         </span>
                         <span className="text-xs text-muted-foreground">
                           {record.language === 'ja' ? '일문' : '영문'}
+                          {' · '}
+                          {OWNER_TYPE_LABEL[record.owner_type] ?? record.owner_type}
                         </span>
                       </div>
                       <span

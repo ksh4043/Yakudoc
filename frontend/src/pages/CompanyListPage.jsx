@@ -92,15 +92,35 @@ export default function CompanyListPage() {
         <div className="mx-auto flex max-w-4xl items-center justify-between px-6 py-4">
           <h1 className="text-lg font-semibold">Yakudoc</h1>
           <div className="flex items-center gap-2">
-            {user?.role === 'admin' && (
+            {user?.team_role === 'lead' && user?.team_id && (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => navigate('/admin/users')}
+                onClick={() => navigate(`/teams/${user.team_id}/board`)}
               >
                 <Users />
-                계정 관리
+                업무 배정
               </Button>
+            )}
+            {user?.role === 'admin' && (
+              <>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate('/admin/teams')}
+                >
+                  <Users />
+                  팀 관리
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate('/admin/users')}
+                >
+                  <Users />
+                  계정 관리
+                </Button>
+              </>
             )}
             <Button variant="ghost" size="sm" onClick={handleLogout}>
               <LogOut />

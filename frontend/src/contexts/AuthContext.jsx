@@ -14,7 +14,13 @@ function decodeUserFromToken(token) {
     const payload = token.split('.')[1]
     const json = JSON.parse(atob(payload.replace(/-/g, '+').replace(/_/g, '/')))
     if (!json.sub || !json.role) return null
-    return { id: json.sub, name: json.name ?? null, role: json.role }
+    return {
+      id: json.sub,
+      name: json.name ?? null,
+      role: json.role,
+      team_id: json.team_id ?? null,
+      team_role: json.team_role ?? null,
+    }
   } catch {
     return null
   }

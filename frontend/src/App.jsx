@@ -5,6 +5,8 @@ import CompanyListPage from '@/pages/CompanyListPage'
 import CompanyDetailPage from '@/pages/CompanyDetailPage'
 import RecordResultPage from '@/pages/RecordResultPage'
 import AdminUsersPage from '@/pages/AdminUsersPage'
+import TeamManagementPage from '@/pages/TeamManagementPage'
+import AssignmentBoardPage from '@/pages/AssignmentBoardPage'
 
 function App() {
   return (
@@ -15,9 +17,11 @@ function App() {
         <Route path="/" element={<CompanyListPage />} />
         <Route path="/companies/:id" element={<CompanyDetailPage />} />
         <Route path="/records/:id" element={<RecordResultPage />} />
+        <Route path="/teams/:id/board" element={<AssignmentBoardPage />} />
 
         <Route element={<AdminRoute />}>
           <Route path="/admin/users" element={<AdminUsersPage />} />
+          <Route path="/admin/teams" element={<TeamManagementPage />} />
         </Route>
       </Route>
 
